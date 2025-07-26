@@ -1,0 +1,14 @@
+1) To make a file using terminal use command --> New-Item fileName.extension
+
+2) To use mongoose in VS code -->
+
+main().catch(err => console.log(err));
+
+async function main() {
+  await mongoose.connect('mongodb://127.0.0.1:27017/test');
+}
+
+3) String.toLocaleString("en-IN") --> To sperate the string with commas(,) according to different standards like INdia ,USA, Germany
+
+
+&#8377; <%= listing.price.toLocaleString("en-IN") %> / night
