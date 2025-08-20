@@ -62,3 +62,12 @@ To get a local copy of the project up and running, follow these simple steps.
     node app.js
     ```
 6.  **Open your browser** and navigate to `http://localhost:8080` to see the application in action.
+
+
+ <-----------------------------------------Some Screenshot Of Webpage------------------------------>
+
+
+ ![All Listing Page](https://raw.githubusercontent.com/vishal80022/Airbnb_clone/main/Preview_image/preview_2.png) 
+ ![Listing Details Page](https://raw.githubusercontent.com/vishal80022/Airbnb_clone/main/Preview_image/Preview_1.png)
+ ![Signup Page](https://raw.githubusercontent.com/vishal80022/Airbnb_clone/main/Preview_image/Preview_3.png)
+ ![Edit Listing Page](https://raw.githubusercontent.com/vishal80022/Airbnb_clone/main/Preview_image/Preview_4.png)
