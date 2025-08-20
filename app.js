@@ -1,14 +1,22 @@
 const express = require("express"); //Requring express pakage
 const app = express(); //Creating an instance(Object) of express
 const mongoose = require("mongoose"); //Requring mongoose package
-const Listing = require("./models/listing"); //Importing the Listing model from models/listing.js
 const path = require("path"); //Requiring path module to handle file paths
 const methodOverride = require("method-override"); //Requiring method-override package to use PUT and DELETE methods in forms
 app.use(methodOverride("_method")); //Middleware to override the HTTP method for forms, allowing us to use PUT and DELETE methods
 const ejsMate = require("ejs-mate"); //Requiring ejsMate package to use EJS as the template engine with additional features
-const ExpressError = require("./utils/ExpressError"); //Importing the ExpressError class from utils/ExpressError.js
-const wrapAsync = require("./utils/wrapAsync"); //Importing the wrapAsync function from utils/wrapAsync.js to handle async errors
+const ExpressError = require("./utils/ExpressError"); //Importing the ExpressError class to handle errors
+const { wrap } = require("module");
+const session = require("express-session"); //Requiring express-session package to handle sessions
+const flash = require("connect-flash"); //Requiring connect-flash package to use flash messages in the application
 
+const passport = require("passport");
+const LocalStrategy = require("passport-local"); //Requiring passport-local strategy for local authentication
+const User = require("./models/user.js"); //Importing the User model from models/user.js
+
+const listingRouter = require("./routes/listing"); //Importing the listings routes from routes/listing.js
+const reviewRouter = require("./routes/review"); //Importing the reviews routes from routes/review.js
+const userRouter = require("./routes/user"); //Importing the user routes from routes/user.js
 //Setting up mongoose to connect to MongoDB
 //Also,we have used async-await that's why this main function return a promise
 main()
@@ -29,77 +37,51 @@ app.use(express.urlencoded({ extended: true })); //Middleware to parse URL-encod
 app.use(express.static(path.join(__dirname, "public"))); //Middleware to serve static files from
 app.engine("ejs", ejsMate); //Using ejsMate as the template engine for ejs files
 
+const sessionOptions = {
+  secret: "mysessionsecret", //Secret key for signing the session ID cookie
+  resave: false, //Forces session to be saved back to the session store even if it was never modified during the request
+  saveUninitialized: true, //Forces a session that is new but not modified to be saved to the session store
+  cookie: {
+    expires: Date.now() + 7 * 24 * 60 * 60 * 1000, //Setting the cookie to expire in 7 day
+    maxAge: 7 * 24 * 60 * 60 * 1000, //Setting the maximum age of the cookie to 7 days
+    httpOnly: true, //Setting the cookie to be accessible only by the web server
+  },
+};
+
 app.get("/", (req, res) => {
   res.send("Hi,I am root");
 }); //Seding a response to the client on root route
 
-// app.get("/testListing", async (req, res) => {
-//   let sampleListing = new Listing({
-//     title: "Beautiful Beach House",
-//     description: "A lovely beach house with stunning ocean views.",
-//     price: 150,
-//     location: "Malibu, CA",
-//     country: "USA",
-//   });
-//   await sampleListing.save(); //Saving the sample listing to the database
-//   res.send("Sample listing created successfully!"); //Sending a response to the client
-// }); //This route is for testing the Listing model
+app.use(session(sessionOptions)); //Using the session middleware with the defined options
+app.use(flash()); //Using the flash middleware to enable flash messages
 
-//Index Route
-app.get("/listings", async (req, res) => {
-  const allListings = await Listing.find({}); //Fetching all listings from the database
-  res.render("./listings/index.ejs", { allListings }); //Rendering the index.ejs file and passing allListings to it
-}); //This route is for fetching all listings and rendering them on the index page
+app.use(passport.initialize()); //Initializing passport for authentication
+app.use(passport.session()); //Using passport session middleware to manage user sessions
 
-//New Route
-app.get("/listings/new", (req, res) => {
-  res.render("./listings/new.ejs"); //Rendering the new.ejs file to create a new listing
-}); //This route is for rendering the form to create a new listing
+passport.use(new LocalStrategy(User.authenticate()));
+passport.serializeUser(User.serializeUser()); //Serializing the user for the session
+passport.deserializeUser(User.deserializeUser()); //Deserializing the user from the session
 
-//create Route
-app.post("/listings", async (req, res) => {
-  const newListing = new Listing(req.body.listing);
-  console.log(req.body.listing); //Creating a new listing with the data from the request body
-  await newListing.save(); //Saving the new listing to the database
-  res.redirect("/listings"); //Redirecting to the index page after saving the listing
-}); //This route is for creating a new listing and saving it to the database
+app.use((req, res, next) => {
+  res.locals.success = req.flash("success"); //Setting the success flash message to be accessible in all views
+  res.locals.error = req.flash("error"); //Setting the error flash message to be accessible in all views
+  res.locals.currUser = req.user; //Setting the current user to be accessible in all views
+  next(); //Calling the next middleware function
+}); //Middleware to set flash messages to be accessible in all views
 
-//Show Route
-app.get("/listings/:id", async (req, res) => {
-  const { id } = req.params; //Extracting the id from the request parameters
-  const listing = await Listing.findById(id); //Finding the listing by id in the database
-  res.render("./listings/show.ejs", { listing }); //Rendering the show.ejs file and passing the listing to it
-}); //This route is for fetching a single listing by id and rendering it on the show page
+app.use("/listings", listingRouter); //Using the listings routes for all routes starting with /listings
+app.use("/listings/:id/reviews", reviewRouter); //Using the reviews routes for all routes starting with /listings/:id/reviews
+app.use("/", userRouter); //Using the user routes for all routes starting with /users
 
-//Edit Route
-app.get("/listings/:id/edit", async (req, res) => {
-  const { id } = req.params; //Extracting the id from the request parameters
-  const listing = await Listing.findById(id); //Finding the listing by id in the database
-  res.render("./listings/edit.ejs", { listing }); //Rendering the edit.ejs file and passing the listing to it
-}); //This route is for rendering the form to edit a listing
-
-//Update Route
-app.put("/listings/:id", async (req, res) => {
-  const { id } = req.params; //Extracting the id from the request parameters
-  await Listing.findByIdAndUpdate(id, { ...req.body.listing }); //Updating the listing by id in the database and returning the updated listing
-  res.redirect(`/listings/${id}`); //Redirecting to the index page after updating the listing
-}); //This route is for updating a listing by id in the database
-
-//delete Route
-app.delete("/listings/:id", async (req, res) => {
-  const { id } = req.params; //Extracting the id from the request parameters
-  await Listing.findByIdAndDelete(id); //Deleting the listing by id in the database
-  res.redirect("/listings"); //Redirecting to the index page after deleting the listing
-}); //This route is for deleting a listing by id in the database
-
-app.all("*", (req, res, next) => {
+app.all("/*splat", (req, res, next) => {
   next(new ExpressError(404, "Page Not Found")); //Handling all other routes that are not defined
 }); //This route is for handling all other routes that are not defined
 
 app.use((err, req, res, next) => {
-  let { status = 500, message = "Something went wrong!" } = err; //Extracting the status and message from the error object
-  res.status(status).send(message); //Rendering the error.ejs file and passing the error object to it
-}); //This route is for handling errors and rendering the error page
+  let { statusCode = 500, message = "Something went wrong!" } = err; //Extracting the statusCode and message from the error object
+  // res.status(statusCode).send(message); //Sending the error message with the status code
+  res.render("error.ejs", { message });
+});
 
 app.listen(8080, () => {
   console.log("server is running on port 8080");
